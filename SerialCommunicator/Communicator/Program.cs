@@ -305,7 +305,7 @@ namespace SerialTest
                     
                     
                     //Thread.Sleep(5000);
-                    if (stopWatch.ElapsedMilliseconds >= 2500)
+                    if (stopWatch.ElapsedMilliseconds >= 5000)
                     {
                         //priceDisplays["L3002"].lastMsg = "";
                         stopWatch.Stop();
@@ -438,59 +438,70 @@ namespace SerialTest
                         string outs = "(D;0)";
                         p.Write(outs);
                     }
+                    else if (Int32.Parse(qty) <= 0)
+                    {
+                        string outs = "(D;0)";
+                        p.Write(outs);
+                    }
                     else if (pr.qty < Int32.Parse(qty))
                     {
                         string outs = "(E;" + pr.qty.ToString() + ")";
                         p.Write(outs);
                     }
-                    else if (currentCR.transaction.totalPrice + (pr.price * Int32.Parse(qty)) > 999999.99 || Int32.Parse(qty) <= 0)
-                    {
-                        string outs = "(D;0)";
-                        p.Write(outs);
-                    }
                     else
                     {
                         double cost = pr.price * Int32.Parse(qty);
-                        cost = cost*(1-(pr.discount/100.0));
-                        
-                        currentCR.transaction.totalPrice += cost;
-                        if (currentCR.transaction == null)
-                        {
-                            currentCR.transaction = new Transaction();
-                        }
-                        int check = 0, i = 0, skipCheck = 0;
-                        foreach (var product in currentCR.transaction.items)
-                        {
-                            if (product.barcode == barcode)
-                            {
-                                if ((currentCR.transaction.qtyList[i] + Int32.Parse(qty)) > pr.qty)
-                                {
-                                    skipCheck = 1;
-                                    string temp_outs = "(E;" + pr.qty.ToString() + ")";
-                                    p.Write(temp_outs);
-                                    break;
-                                }
-                                else
-                                {
-                                    currentCR.transaction.qtyList[i] += Int32.Parse(qty);
-                                    check = 1;
-                                    break;
-                                }
-                            }
-                            i++;
-                        }
-                        if (skipCheck == 0)
-                        {
-                            if (check == 0)
-                            {
-                                currentCR.transaction.items.Add(pr);
-                                currentCR.transaction.qtyList.Add(Int32.Parse(qty));
-                                currentCR.transaction.status = 1;
-                            }
+                        cost = cost * (1 - (pr.discount / 100.0));
+                        if (pr.bundleUnit <= Int32.Parse(qty) && pr.bundleUnit > 0)
+                            cost = 0.9 * cost;
 
-                            string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                        if (currentCR.transaction.totalPrice + cost > 999999.99 || Int32.Parse(qty) <= 0)
+                        {
+                            string outs = "(D;0)";
                             p.Write(outs);
-                            Console.WriteLine("Sent data : " + outs);
+                        }
+                        else
+                        {
+                            currentCR.transaction.totalPrice += cost;
+                            if (currentCR.transaction == null)
+                            {
+                                currentCR.transaction = new Transaction();
+                            }
+                            int check = 0, i = 0, skipCheck = 0;
+                            foreach (var product in currentCR.transaction.items)
+                            {
+                                if (product.barcode == barcode)
+                                {
+                                    if ((currentCR.transaction.qtyList[i] + Int32.Parse(qty)) > pr.qty)
+                                    {
+                                        skipCheck = 1;
+                                        currentCR.transaction.totalPrice -= cost;
+                                        string temp_outs = "(E;" + pr.qty.ToString() + ")";
+                                        p.Write(temp_outs);
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        currentCR.transaction.qtyList[i] += Int32.Parse(qty);
+                                        check = 1;
+                                        break;
+                                    }
+                                }
+                                i++;
+                            }
+                            if (skipCheck == 0)
+                            {
+                                if (check == 0)
+                                {
+                                    currentCR.transaction.items.Add(pr);
+                                    currentCR.transaction.qtyList.Add(Int32.Parse(qty));
+                                    currentCR.transaction.status = 1;
+                                }
+
+                                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                                p.Write(outs);
+                                Console.WriteLine("Sent data : " + outs);
+                            }
                         }
                     }
                     cflag = 0;
@@ -610,6 +621,9 @@ namespace SerialTest
                         cashRegisters[0].transaction.qtyList.RemoveAt(index);
 
                         double cost = pr.price * qty;
+                        cost = cost * (1 - (pr.discount / 100.0));
+                        if (pr.bundleUnit <= qty && pr.bundleUnit > 0)
+                            cost = 0.9 * cost;
                         currentCR.transaction.totalPrice -= cost;
 
                         string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
@@ -792,19 +806,27 @@ namespace SerialTest
                             int oldQty = currentCR.transaction.qtyList[index];
                             double oldCost = oldQty * pr.price;
 
-                            if ((Int32.Parse(qty) * pr.price + currentCR.transaction.totalPrice - oldCost) > 999999.99)
+                            index = currentCR.transaction.items.IndexOf(pr);
+                            //currentCR.transaction.items.RemoveAt(pr);
+
+                            currentCR.transaction.qtyList[index] = newQty;
+
+                            double newCost = newQty * pr.price;
+                            newCost = newCost * (1 - (pr.discount / 100.0));
+                            if (pr.bundleUnit <= newQty && pr.bundleUnit > 0)
+                                newCost = 0.9 * newCost;
+
+                            oldCost = oldCost * (1 - (pr.discount / 100.0));
+                            if (pr.bundleUnit <= oldQty && pr.bundleUnit > 0)
+                                oldCost = 0.9 * oldCost;
+
+                            if ((newCost + currentCR.transaction.totalPrice - oldCost) > 999999.99)
                             {
                                 string outs = "(D;0)";
                                 p.Write(outs);
                             }
                             else
                             {
-                                index = currentCR.transaction.items.IndexOf(pr);
-                                //currentCR.transaction.items.RemoveAt(pr);
-
-                                currentCR.transaction.qtyList[index] = newQty;
-
-                                double newCost = newQty * pr.price;
                                 currentCR.transaction.totalPrice -= oldCost;
                                 currentCR.transaction.totalPrice += newCost;
                                 string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
