@@ -9,6 +9,12 @@ namespace SerialTest
     {
         static void Main(string[] args)
         {
+            communicate();   
+        }
+
+        static void communicate()
+        {
+
             string[] names = SerialPort.GetPortNames();
             Console.WriteLine("Serial ports:");
             foreach (string name in names)
