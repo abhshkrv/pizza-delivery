@@ -94,7 +94,8 @@ namespace SerialTest
 
                 lcd.id = "L"+(string)p["priceDisplayID"];
 
-                priceDisplays.Add(lcd.id, lcd);
+                if (!priceDisplays.ContainsKey(lcd.id)) 
+                    priceDisplays.Add(lcd.id, lcd);
 
             }
         }
