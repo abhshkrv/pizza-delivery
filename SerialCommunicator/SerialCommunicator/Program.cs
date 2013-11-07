@@ -42,7 +42,7 @@ namespace SerialTest
 
         static void readProducts(Dictionary<string, Product> products)
         {
-            string url = "http://localhost:1824/serial/Product";
+            string url = "http://pizza-bakery.azurewebsites.net/serial/Product";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
             string text;
@@ -65,14 +65,15 @@ namespace SerialTest
 
                 product.price = (float)p["sellingPrice"];
 
-                products.Add(product.barcode, product);
+                if(!products.ContainsKey(product.barcode))
+                    products.Add(product.barcode, product);
 
             }
         }
 
         static void readPriceDisplays(Dictionary<string, PriceDisplay> priceDisplays)
         {
-            string url = "http://localhost:1824/serial/Pricedisplays";
+            string url = "http://pizza-bakery.azurewebsites.net/serial/priceDisplays";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
             string text;
@@ -117,7 +118,10 @@ namespace SerialTest
                     p.Write("[L3002]");
                     flag = 1;
                 }
-
+                //sleep for 10 secs. this should be replaced with polling mocked up cash registers and LCDs
+                System.Threading.Thread.Sleep(10000);
+                readProducts(products);
+                readPriceDisplays(priceDisplays);
             }
             /*string line;
             do
