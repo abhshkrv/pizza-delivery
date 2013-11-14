@@ -5,6 +5,7 @@ using System.IO.Ports;
 using System.Net;
 using System.IO;
 using Newtonsoft.Json.Linq;
+using System.Threading;
 
 namespace SerialTest
 {
@@ -42,6 +43,7 @@ namespace SerialTest
 
         static void readProducts(Dictionary<string, Product> products)
         {
+            Console.WriteLine("Reading prices in new thread");
             string url = "http://pizza-bakery.azurewebsites.net/serial/Product";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
@@ -73,6 +75,7 @@ namespace SerialTest
 
         static void readPriceDisplays(Dictionary<string, PriceDisplay> priceDisplays)
         {
+            
             string url = "http://pizza-bakery.azurewebsites.net/serial/priceDisplays";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
@@ -119,10 +122,13 @@ namespace SerialTest
                     p.Write("[L3002]");
                     flag = 1;
                 }
+                Thread thread1 = new Thread(() => readProducts(products));
+                thread1.Start();
+                thread1.Join();
                 //sleep for 10 secs. this should be replaced with polling mocked up cash registers and LCDs
                 System.Threading.Thread.Sleep(10000);
-                readProducts(products);
-                readPriceDisplays(priceDisplays);
+               // readProducts(products);
+                //readPriceDisplays(priceDisplays);
             }
             /*string line;
             do
@@ -130,8 +136,8 @@ namespace SerialTest
                 line = Console.ReadLine();
                 p.Write(line);
             } while (line != "quit");
-            
-             */
+            */
+             
             p.Close();
         }
 
