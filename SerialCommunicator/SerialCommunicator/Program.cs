@@ -67,15 +67,23 @@ namespace SerialTest
 
                 product.price = (float)p["sellingPrice"];
 
-                if(!products.ContainsKey(product.barcode))
+                if (!products.ContainsKey(product.barcode))
                     products.Add(product.barcode, product);
 
+                else {
+                    products[product.barcode] = product;
+                }
+            
             }
+
+
+
+            Console.WriteLine("Read complete");
         }
 
         static void readPriceDisplays(Dictionary<string, PriceDisplay> priceDisplays)
         {
-            
+
             string url = "http://pizza-bakery.azurewebsites.net/serial/priceDisplays";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
@@ -95,9 +103,9 @@ namespace SerialTest
                 PriceDisplay lcd = new PriceDisplay();
                 lcd.barcode = (string)p["barcode"];
 
-                lcd.id = "L"+(string)p["priceDisplayID"];
+                lcd.id = "L" + (string)p["priceDisplayID"];
 
-                if (!priceDisplays.ContainsKey(lcd.id)) 
+                if (!priceDisplays.ContainsKey(lcd.id))
                     priceDisplays.Add(lcd.id, lcd);
 
             }
@@ -112,13 +120,14 @@ namespace SerialTest
             foreach (string name in names)
                 Console.WriteLine(name);
             Console.Write("Choose one:");
-            p = new SerialPort(Console.ReadLine());
+            p = new SerialPort(Console.ReadLine(), 9600, Parity.None, 8, StopBits.Two);
             p.DataReceived += new SerialDataReceivedEventHandler(p_DataReceived);
             p.Open();
             while (true)
             {
                 if (flag == 0)
                 {
+                    Console.WriteLine("Sending ID...");
                     p.Write("[L3002]");
                     flag = 1;
                 }
@@ -127,7 +136,7 @@ namespace SerialTest
                 thread1.Join();
                 //sleep for 10 secs. this should be replaced with polling mocked up cash registers and LCDs
                 System.Threading.Thread.Sleep(10000);
-               // readProducts(products);
+                // readProducts(products);
                 //readPriceDisplays(priceDisplays);
             }
             /*string line;
@@ -137,19 +146,27 @@ namespace SerialTest
                 p.Write(line);
             } while (line != "quit");
             */
-             
+
             p.Close();
         }
 
+        static string buffer;
         static void p_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            if ((sender as SerialPort).ReadExisting() == "*1*")
+            string line = (sender as SerialPort).ReadExisting();
+            buffer += line;
+            if (buffer.Length > 3)
+                buffer = "";
+            Console.WriteLine("Data received = " +line);
+            if (buffer == "*1*")
             {
+                buffer = "";
                 Console.WriteLine("LCD Found");
                 Product pr = products[priceDisplays["L3002"].barcode];
                 string outs = "<" + pr.name + ">" + "{" + pr.price + "}";
 
                 p.Write(outs);
+                Console.WriteLine("Sent data : " + outs);
                 flag = 0;
 
 
