@@ -266,7 +266,7 @@ namespace SerialTest
                 currentCR.transaction.qtyList.Add(Int16.Parse(qty));
 
 
-                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" +pr.price.ToString().TrimStart('0') + ")";
+                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" +cost.ToString().TrimStart('0') + ")";
 
                 p.Write(outs);
                 Console.WriteLine("Sent data : " + outs);
@@ -329,6 +329,20 @@ namespace SerialTest
                 buffer = "";
                 Console.WriteLine("Authentication check complete");
                 flag = 0;
+            }
+
+            else if (buffer.Contains("<") && buffer.Contains(">"))
+            {
+                int index = Int16.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
+                Product pr = cashRegisters[0].transaction.items[index - 1];
+                int qty = cashRegisters[0].transaction.qtyList[index - 1];
+                cashRegisters[0].transaction.items.RemoveAt(index - 1);
+                cashRegisters[0].transaction.qtyList.RemoveAt(index - 1);
+
+                double cost = pr.price * qty;
+
+                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString().TrimStart('0') + ")";
+
             }
 
         }
