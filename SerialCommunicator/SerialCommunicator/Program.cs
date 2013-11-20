@@ -6,6 +6,7 @@ using System.Net;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using System.Threading;
+using System.Collections.Specialized;
 
 namespace SerialTest
 {
@@ -17,26 +18,80 @@ namespace SerialTest
 
     }
 
+    public class Transaction
+    {
+        public List<Product> items { get; set; }
+        public List<int> qtyList { get; set; }
+
+        public Transaction()
+        {
+            items = new List<Product>();
+            qtyList = new List<int>();
+        }
+    }
+
+    public enum Status
+    {
+        OFFLINE, ONLINE, IN_TRANS
+    }
+
+    public class CashRegister
+    {
+        public string id { get; set; }
+        public Transaction transaction { get; set; }
+        public Status status { get; set; }
+
+    }
+
     public class PriceDisplay
     {
         public string barcode { get; set; }
         public string id { get; set; }
     }
 
+    public class MockCashRegister
+    {
+        public string id { get; set; }
+
+        public string generateTransactionString()
+        {
+            Random rnd = new Random();
+            int itemQty = rnd.Next(1, 10);
+
+            return "";
+        }
+    }
+
+    
 
     class Program
     {
         static Dictionary<string, Product> products = new Dictionary<string, Product>();
+        static List<CashRegister> cashRegisters = new List<CashRegister>();
+        
         static Dictionary<string, PriceDisplay> priceDisplays = new Dictionary<string, PriceDisplay>();
+
         static void Main(string[] args)
         {
 
             Console.WriteLine("Reading Products\n");
             readProducts(products);
+            Console.WriteLine("Reading CashRegisters");
+            readCashRegisters(cashRegisters);
             Console.WriteLine("Reading LCDs\n");
             readPriceDisplays(priceDisplays);
             Console.WriteLine("Starting communications");
             communicate();
+        }
+
+        private static void readCashRegisters(List<CashRegister> cashRegisters)
+        {
+            CashRegister cr = new CashRegister();
+            cr.id = "C2271";
+            cr.status = Status.OFFLINE;
+            
+
+            cashRegisters.Add(cr);
         }
 
 
@@ -70,10 +125,11 @@ namespace SerialTest
                 if (!products.ContainsKey(product.barcode))
                     products.Add(product.barcode, product);
 
-                else {
+                else
+                {
                     products[product.barcode] = product;
                 }
-            
+
             }
 
 
@@ -125,12 +181,22 @@ namespace SerialTest
             p.Open();
             while (true)
             {
-                if (flag == 0)
+                /*if (flag == 0)
                 {
                     Console.WriteLine("Sending ID...");
                     p.Write("[L3002]");
                     flag = 1;
+                }*/
+
+                if (flag == 0)
+                {
+                    CashRegister cr = cashRegisters[0];
+                    Console.WriteLine("Sending ID...");
+                    p.Write(cr.id);
+                    currentCR = cr;
+                    flag = 1;
                 }
+                
                 Thread thread1 = new Thread(() => readProducts(products));
                 thread1.Start();
                 thread1.Join();
@@ -151,13 +217,14 @@ namespace SerialTest
         }
 
         static string buffer;
+        static CashRegister currentCR;
         static void p_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            string line = (sender as SerialPort).ReadExisting();
+            /*string line = (sender as SerialPort).ReadExisting();
             buffer += line;
             if (buffer.Length > 3)
                 buffer = "";
-            Console.WriteLine("Data received = " +line);
+            Console.WriteLine("Data received = " + line);
             if (buffer == "*1*")
             {
                 buffer = "";
@@ -171,6 +238,99 @@ namespace SerialTest
 
 
             }
+             */
+
+            string line = (sender as SerialPort).ReadExisting();
+            buffer += line;
+            if (buffer.Length > 24)
+                buffer = "";
+            Console.WriteLine("Data received = " + line);
+            
+            
+            if (buffer.Contains("[") && buffer.Contains("]"))
+            {
+                
+                Console.WriteLine("Cash Register found Found");
+                string barcode = buffer.Substring(buffer.IndexOf('[') + 1,8);
+                string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';')+1));
+
+                Product pr = new Product();
+                pr = products[barcode];
+
+                double cost = pr.price * Int16.Parse(qty);
+                if (currentCR.transaction == null)
+                {
+                    currentCR.transaction = new Transaction();
+                }
+                currentCR.transaction.items.Add(pr);
+                currentCR.transaction.qtyList.Add(Int16.Parse(qty));
+
+
+                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" +pr.price.ToString().TrimStart('0') + ")";
+
+                p.Write(outs);
+                Console.WriteLine("Sent data : " + outs);
+                flag = 0;
+                buffer = "";
+            }
+
+            if (buffer == "*4*")
+            {
+                string tstring = "2271:";
+                for (int i = 0; i < cashRegisters[0].transaction.items.Count; i++)
+                {
+                    Product p = cashRegisters[0].transaction.items[i];
+                    int qty = cashRegisters[0].transaction.qtyList[i];
+                    tstring += p.barcode;
+                    tstring += "#"+ qty ;
+                    if (i != cashRegisters[0].transaction.items.Count - 1)
+                        tstring += ";";
+                }
+
+                using (var wb = new WebClient())
+                {
+                    string url = "http://localhost:1824/transaction/addTransaction";
+                    var data = new NameValueCollection();
+                    data["transactionString"] =tstring;
+                    //data["password"] = "myPassword";
+
+                    var response = wb.UploadValues(url, "POST", data);
+                }
+
+
+                cashRegisters[0].status = Status.ONLINE;
+                cashRegisters[0].transaction = null;
+                
+                buffer = "";
+                Console.WriteLine("Transaction Complete");
+                flag = 0;
+                
+            }
+
+            else if (buffer.Contains("(") && buffer.Contains(")"))
+            {
+                Console.WriteLine("Cash Register found Found");
+                string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
+                string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
+
+                if (username == "123456" && password == "987654")
+                {
+                    Console.WriteLine("Authentication Success");
+                    buffer = "";
+                    cashRegisters[0].status = Status.ONLINE;
+                    p.Write("(A;0)");
+                }
+                else 
+                {
+                    Console.WriteLine("Authentication Failed");
+                    p.Write("(B;0)");
+                }
+
+                buffer = "";
+                Console.WriteLine("Authentication check complete");
+                flag = 0;
+            }
+
         }
     }
 }
