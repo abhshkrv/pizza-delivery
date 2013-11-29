@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 using System.Threading;
 using System.Collections.Specialized;
 
-namespace SerialTestdd
+namespace SerialTest
 {
     public class Product
     {
@@ -62,13 +62,13 @@ namespace SerialTestdd
         }
     }
 
-    
+
 
     class Program
     {
         static Dictionary<string, Product> products = new Dictionary<string, Product>();
         static List<CashRegister> cashRegisters = new List<CashRegister>();
-        
+
         static Dictionary<string, PriceDisplay> priceDisplays = new Dictionary<string, PriceDisplay>();
 
         static void Main(string[] args)
@@ -89,7 +89,7 @@ namespace SerialTestdd
             CashRegister cr = new CashRegister();
             cr.id = "C2271";
             cr.status = Status.OFFLINE;
-            
+
 
             cashRegisters.Add(cr);
         }
@@ -99,7 +99,7 @@ namespace SerialTestdd
         static void readProducts(Dictionary<string, Product> products)
         {
             Console.WriteLine("Reading prices in new thread");
-            string url = "http://pizza-bakery.azurewebsites.net/serial/Product";
+            string url = "http://localhost:1824/serial/Product";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
             string text;
@@ -140,7 +140,7 @@ namespace SerialTestdd
         static void readPriceDisplays(Dictionary<string, PriceDisplay> priceDisplays)
         {
 
-            string url = "http://pizza-bakery.azurewebsites.net/serial/priceDisplays";
+            string url = "http://localhost:1824/serial/priceDisplays";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
             string text;
@@ -179,6 +179,7 @@ namespace SerialTestdd
             p = new SerialPort(Console.ReadLine(), 9600, Parity.None, 8, StopBits.Two);
             p.DataReceived += new SerialDataReceivedEventHandler(p_DataReceived);
             p.Open();
+            int update = 0;
             while (true)
             {
                 /*if (flag == 0)
@@ -191,17 +192,22 @@ namespace SerialTestdd
                 if (flag == 0)
                 {
                     CashRegister cr = cashRegisters[0];
-                    Console.WriteLine("Sending ID...");
-                    p.Write(cr.id);
+                    Console.WriteLine("Sending ID...["+cr.id+"]");
+                    p.Write("["+cr.id+"]");
                     currentCR = cr;
                     flag = 1;
                 }
-                
-                Thread thread1 = new Thread(() => readProducts(products));
-                thread1.Start();
-                thread1.Join();
+
+                if (update == 10)
+                {
+                    Thread thread1 = new Thread(() => readProducts(products));
+                    thread1.Start();
+                    thread1.Join();
+                    update = 0;
+                }
+                update++;
                 //sleep for 10 secs. this should be replaced with polling mocked up cash registers and LCDs
-                System.Threading.Thread.Sleep(10000);
+                //System.Threading.Thread.Sleep(10000);
                 // readProducts(products);
                 //readPriceDisplays(priceDisplays);
             }
@@ -245,14 +251,14 @@ namespace SerialTestdd
             if (buffer.Length > 24)
                 buffer = "";
             Console.WriteLine("Data received = " + line);
-            
-            
+
+
             if (buffer.Contains("[") && buffer.Contains("]"))
             {
-                
+
                 Console.WriteLine("Cash Register found Found");
-                string barcode = buffer.Substring(buffer.IndexOf('[') + 1,8);
-                string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';')+1));
+                string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
+                string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
 
                 Product pr = new Product();
                 pr = products[barcode];
@@ -266,7 +272,7 @@ namespace SerialTestdd
                 currentCR.transaction.qtyList.Add(Int16.Parse(qty));
 
 
-                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" +cost.ToString().TrimStart('0') + ")";
+                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
 
                 p.Write(outs);
                 Console.WriteLine("Sent data : " + outs);
@@ -282,7 +288,7 @@ namespace SerialTestdd
                     Product p = cashRegisters[0].transaction.items[i];
                     int qty = cashRegisters[0].transaction.qtyList[i];
                     tstring += p.barcode;
-                    tstring += "#"+ qty ;
+                    tstring += "#" + qty;
                     if (i != cashRegisters[0].transaction.items.Count - 1)
                         tstring += ";";
                 }
@@ -291,7 +297,7 @@ namespace SerialTestdd
                 {
                     string url = "http://localhost:1824/transaction/addTransaction";
                     var data = new NameValueCollection();
-                    data["transactionString"] =tstring;
+                    data["transactionString"] = tstring;
                     //data["password"] = "myPassword";
 
                     var response = wb.UploadValues(url, "POST", data);
@@ -300,11 +306,11 @@ namespace SerialTestdd
 
                 cashRegisters[0].status = Status.ONLINE;
                 cashRegisters[0].transaction = null;
-                
+
                 buffer = "";
                 Console.WriteLine("Transaction Complete");
                 flag = 0;
-                
+
             }
 
             else if (buffer.Contains("(") && buffer.Contains(")"))
@@ -320,7 +326,7 @@ namespace SerialTestdd
                     cashRegisters[0].status = Status.ONLINE;
                     p.Write("(A;0)");
                 }
-                else 
+                else
                 {
                     Console.WriteLine("Authentication Failed");
                     p.Write("(B;0)");
@@ -328,6 +334,12 @@ namespace SerialTestdd
 
                 buffer = "";
                 Console.WriteLine("Authentication check complete");
+                flag = 0;
+            }
+
+            else if (buffer == "*0*")
+            {
+                buffer = "";
                 flag = 0;
             }
 
@@ -341,8 +353,8 @@ namespace SerialTestdd
 
                 double cost = pr.price * qty;
 
-                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString().TrimStart('0') + ")";
-
+                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                flag = 0;
             }
 
         }
