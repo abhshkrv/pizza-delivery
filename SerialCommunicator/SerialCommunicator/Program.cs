@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 using System.Threading;
 using System.Collections.Specialized;
 
-namespace SerialTest
+namespace SerialTestdd
 {
     public class Product
     {
