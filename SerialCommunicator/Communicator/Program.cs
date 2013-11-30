@@ -204,7 +204,7 @@ namespace SerialTest
                     p.Write("[L3002]");
                     flag = 1;
                 }*/
-
+                Thread.Sleep(100);
                 if (cflag == 0)
                 {
                     if (state == 0)
@@ -221,9 +221,9 @@ namespace SerialTest
                         Product pr = products[priceDisplays["L3002"].barcode];
                         string outs;
                         if (pr.discount == 0.0)
-                            outs = "Price:" + pr.price + "$  " + "Discount:" + "No Discount currently";
+                            outs = "<"+pr.name+">"+"{"+"Price:" + pr.price + "$  " + "No Discount Currently}";
                         else
-                            outs = "Price:" + pr.price + "$  " + "Discount:" + pr.discount + "%";
+                            outs = "<"+pr.name+">"+"{"+"Price:" + pr.price + "$  " + "Discount:" + pr.discount + "%}";
 
                         PriceDisplay pd = priceDisplays["L3002"];
 
@@ -244,7 +244,7 @@ namespace SerialTest
                     }
                 }
 
-                if (update == 10000)
+                if (update == 1)
                 {
 
                     //thread1.Start();
