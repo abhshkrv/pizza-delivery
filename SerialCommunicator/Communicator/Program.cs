@@ -47,6 +47,7 @@ namespace SerialTest
     {
         public string barcode { get; set; }
         public string id { get; set; }
+        public string lastMsg { get; set; }
     }
 
     public class MockCashRegister
@@ -102,14 +103,23 @@ namespace SerialTest
             string url = "http://localhost:1824/serial/Product";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
-            string text;
-            var response = (HttpWebResponse)request.GetResponse();
+            string text = ""; ;
 
-            using (var sr = new StreamReader(response.GetResponseStream()))
+            try
             {
-                text = sr.ReadToEnd();
-            }
+                var response = (HttpWebResponse)request.GetResponse();
 
+
+                using (var sr = new StreamReader(response.GetResponseStream()))
+                {
+                    text = sr.ReadToEnd();
+                }
+
+            }
+            catch
+            {
+                Console.WriteLine("Network Error");
+            }
             JObject raw = JObject.Parse(text);
             JArray productArray = (JArray)raw["products"];
 
@@ -168,7 +178,8 @@ namespace SerialTest
         }
 
         static SerialPort p;
-        static int flag = 0;
+        static int cflag = 0;
+        static int state = 1;
         static void communicate()
         {
             string[] names = SerialPort.GetPortNames();
@@ -189,27 +200,56 @@ namespace SerialTest
                     flag = 1;
                 }*/
 
-                if (flag == 0)
+                if (cflag == 0)
                 {
-                    CashRegister cr = cashRegisters[0];
-                    Console.WriteLine("Sending ID...["+cr.id+"]");
-                    p.Write("["+cr.id+"]");
-                    currentCR = cr;
-                    flag = 1;
+                    if (state == 0)
+                    {
+                        CashRegister cr = cashRegisters[0];
+                        Console.WriteLine("Sending ID...[" + cr.id + "]");
+                        p.Write("[" + cr.id + "]");
+                        currentCR = cr;
+                        cflag = 1;
+                    }
+
+                    if (state == 1)
+                    {
+                        Product pr = products[priceDisplays["L3002"].barcode];
+                        string outs = "<" + pr.name + ">" + "{" + pr.price + "}";
+
+                        PriceDisplay pd = priceDisplays["L3002"];
+
+                        if (pd.lastMsg != outs)
+                        {
+                            Console.WriteLine("Sending ID...");
+                            p.Write("[L3002]");
+                            pd.lastMsg = outs;
+                            cflag = 1;
+                        }
+                        else
+                        {
+                            Console.WriteLine("No price update");
+                            state = 0;
+                            cflag = 0;
+                            buffer = "";
+                        }
+                    }
                 }
 
-                if (update == 10)
+                if (update == 10000)
                 {
                     Thread thread1 = new Thread(() => readProducts(products));
-                    thread1.Start();
+                    //thread1.Start();
+                    // thread1.Join();
+                    if (thread1.ThreadState != ThreadState.Running)
+                    {
+                        thread1.Start();
+                    }
+                    //Thread.Sleep(5000);
                     thread1.Join();
                     update = 0;
                 }
                 update++;
-                //sleep for 10 secs. this should be replaced with polling mocked up cash registers and LCDs
-                //System.Threading.Thread.Sleep(10000);
-                // readProducts(products);
-                //readPriceDisplays(priceDisplays);
+
             }
             /*string line;
             do
@@ -226,137 +266,211 @@ namespace SerialTest
         static CashRegister currentCR;
         static void p_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            /*string line = (sender as SerialPort).ReadExisting();
-            buffer += line;
-            if (buffer.Length > 3)
-                buffer = "";
-            Console.WriteLine("Data received = " + line);
-            if (buffer == "*1*")
-            {
-                buffer = "";
-                Console.WriteLine("LCD Found");
-                Product pr = products[priceDisplays["L3002"].barcode];
-                string outs = "<" + pr.name + ">" + "{" + pr.price + "}";
-
-                p.Write(outs);
-                Console.WriteLine("Sent data : " + outs);
-                flag = 0;
-
-
-            }
-             */
-
             string line = (sender as SerialPort).ReadExisting();
             buffer += line;
             if (buffer.Length > 24)
                 buffer = "";
             Console.WriteLine("Data received = " + line);
 
-
-            if (buffer.Contains("[") && buffer.Contains("]"))
+            if (state == 0)
             {
 
-                Console.WriteLine("Cash Register found Found");
-                string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
-                string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
-
-                Product pr = new Product();
-                pr = products[barcode];
-
-                double cost = pr.price * Int16.Parse(qty);
-                if (currentCR.transaction == null)
+                if (buffer.Contains("[") && buffer.Contains("]"))
                 {
-                    currentCR.transaction = new Transaction();
-                }
-                currentCR.transaction.items.Add(pr);
-                currentCR.transaction.qtyList.Add(Int16.Parse(qty));
+
+                    Console.WriteLine("Cash Register found Found");
+                    string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
+                    string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
+
+                    Product pr = new Product();
+                    pr = products[barcode];
+
+                    double cost = pr.price * Int16.Parse(qty);
+                    if (currentCR.transaction == null)
+                    {
+                        currentCR.transaction = new Transaction();
+                    }
+                    currentCR.transaction.items.Add(pr);
+                    currentCR.transaction.qtyList.Add(Int16.Parse(qty));
 
 
-                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                    string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
 
-                p.Write(outs);
-                Console.WriteLine("Sent data : " + outs);
-                flag = 0;
-                buffer = "";
-            }
-
-            if (buffer == "*4*")
-            {
-                string tstring = "2271:";
-                for (int i = 0; i < cashRegisters[0].transaction.items.Count; i++)
-                {
-                    Product p = cashRegisters[0].transaction.items[i];
-                    int qty = cashRegisters[0].transaction.qtyList[i];
-                    tstring += p.barcode;
-                    tstring += "#" + qty;
-                    if (i != cashRegisters[0].transaction.items.Count - 1)
-                        tstring += ";";
-                }
-
-                using (var wb = new WebClient())
-                {
-                    string url = "http://localhost:1824/transaction/addTransaction";
-                    var data = new NameValueCollection();
-                    data["transactionString"] = tstring;
-                    //data["password"] = "myPassword";
-
-                    var response = wb.UploadValues(url, "POST", data);
-                }
-
-
-                cashRegisters[0].status = Status.ONLINE;
-                cashRegisters[0].transaction = null;
-
-                buffer = "";
-                Console.WriteLine("Transaction Complete");
-                flag = 0;
-
-            }
-
-            else if (buffer.Contains("(") && buffer.Contains(")"))
-            {
-                Console.WriteLine("Cash Register found Found");
-                string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
-                string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
-
-                if (username == "123456" && password == "987654")
-                {
-                    Console.WriteLine("Authentication Success");
+                    p.Write(outs);
+                    Console.WriteLine("Sent data : " + outs);
+                    cflag = 0;
+                    state = 1;
                     buffer = "";
-                    cashRegisters[0].status = Status.ONLINE;
-                    p.Write("(A;0)");
                 }
-                else
+
+                if (buffer == "*4*")
                 {
-                    Console.WriteLine("Authentication Failed");
-                    p.Write("(B;0)");
+                    string tstring = "2271:";
+                    for (int i = 0; i < cashRegisters[0].transaction.items.Count; i++)
+                    {
+                        Product p = cashRegisters[0].transaction.items[i];
+                        int qty = cashRegisters[0].transaction.qtyList[i];
+                        tstring += p.barcode;
+                        tstring += "#" + qty;
+                        if (i != cashRegisters[0].transaction.items.Count - 1)
+                            tstring += ";";
+                    }
+
+                    using (var wb = new WebClient())
+                    {
+                        string url = "http://localhost:1824/transaction/addTransaction";
+                        var data = new NameValueCollection();
+                        data["transactionString"] = tstring;
+                        //data["password"] = "myPassword";
+
+                        var response = wb.UploadValues(url, "POST", data);
+                    }
+
+
+                    cashRegisters[0].status = Status.ONLINE;
+                    cashRegisters[0].transaction = null;
+
+                    buffer = "";
+                    Console.WriteLine("Transaction Complete");
+                    cflag = 0;
+                    state = 1;
+
                 }
 
-                buffer = "";
-                Console.WriteLine("Authentication check complete");
-                flag = 0;
+                // authenctication
+                else if (buffer.Contains("(") && buffer.Contains(")"))
+                {
+                    Console.WriteLine("Cash Register found Found");
+                    string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
+                    string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
+
+                    if (username == "123456" && decrypt(password) == "987654")
+                    {
+                        Console.WriteLine("Authentication Success");
+                        buffer = "";
+                        cashRegisters[0].status = Status.ONLINE;
+                        p.Write("(A;0)");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Authentication Failed");
+                        p.Write("(B;0)");
+                    }
+
+                    buffer = "";
+                    Console.WriteLine("Authentication check complete");
+                    cflag = 0;
+                    state = 1;
+                }
+
+                else if (buffer == "*0*")
+                {
+                    Console.WriteLine("CR: Nothing to send");
+                    buffer = "";
+                    cflag = 0;
+                    state = 1;
+                }
+
+                 //cancel item
+                else if (buffer.Contains("<") && buffer.Contains(">"))
+                {
+                    int index = Int16.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
+                    Product pr = cashRegisters[0].transaction.items[index - 1];
+                    int qty = cashRegisters[0].transaction.qtyList[index - 1];
+                    cashRegisters[0].transaction.items.RemoveAt(index - 1);
+                    cashRegisters[0].transaction.qtyList.RemoveAt(index - 1);
+
+                    double cost = pr.price * qty;
+
+                    string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                    cflag = 0;
+                    state = 1;
+                }
+
+                //cancel transaction
+                else if(buffer.Contains("*3*"))
+                {
+                    currentCR.transaction = null;
+                    cflag = 0;
+                    state = 1;
+                }
+
+                //logout
+                else if (buffer.Contains("*2*"))
+                {
+                    currentCR.status = Status.OFFLINE;
+                    Console.WriteLine("Logged Out");
+                    cflag = 0;
+                    state = 1;
+                }
+
+                else if(buffer.Contains("$")&&buffer.Contains(">"))
+                {
+                    Console.WriteLine("Sending Email and SMS ...");
+                    cflag = 0;
+                    state = 1;
+                }
+
+                else if (buffer.Contains("#") && buffer.Contains("]"))
+                {
+                    //#12345678;qty]
+                    string barcode = buffer.Substring(buffer.IndexOf('#') + 1, 8);
+                    string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
+                    int newQty = Int16.Parse(qty);
+                    Product pr;
+                    pr = products[barcode];
+
+                    int index = currentCR.transaction.items.IndexOf(pr);
+                    //currentCR.transaction.items.RemoveAt(pr);
+                    int oldQty = currentCR.transaction.qtyList[index];
+                    double oldCost = oldQty * pr.price;
+
+                    currentCR.transaction.qtyList[index] = newQty;
+
+                    double newCost = newQty * pr.price;
+
+                    string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
+                    string outs = "(" + (int)Math.Floor(Math.Log10(oldCost) + 1) + ";" + oldCost.ToString("0.00").TrimStart('0') + ")"+newOuts;
+                    p.Write(outs);
+                    cflag = 0;
+                    state = 1;
+                }
             }
 
-            else if (buffer == "*0*")
+            else
             {
-                buffer = "";
-                flag = 0;
-            }
 
-            else if (buffer.Contains("<") && buffer.Contains(">"))
+                if (buffer == "*1*")
+                {
+                    buffer = "";
+                    Console.WriteLine("LCD Found");
+                    // Product pr = products[priceDisplays["L3002"].barcode];
+                    // string outs = "<" + pr.name + ">" + "{" + pr.price + "}";
+
+                    PriceDisplay pd = priceDisplays["L3002"];
+
+                    p.Write(pd.lastMsg);
+                    Console.WriteLine("Sent data : " + pd.lastMsg);
+                    cflag = 0;
+                    state = 0;
+
+
+                }
+
+            }
+        }
+
+        private static string decrypt(string password)
+        {
+            //15
+
+            string value="";
+           for(int i=0;i<6;i++)
             {
-                int index = Int16.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
-                Product pr = cashRegisters[0].transaction.items[index - 1];
-                int qty = cashRegisters[0].transaction.qtyList[index - 1];
-                cashRegisters[0].transaction.items.RemoveAt(index - 1);
-                cashRegisters[0].transaction.qtyList.RemoveAt(index - 1);
-
-                double cost = pr.price * qty;
-
-                string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
-                flag = 0;
+                value += (char)(password[i]-15-i);
             }
 
+           return value;
         }
     }
 }
