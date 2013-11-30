@@ -16,6 +16,7 @@ namespace SerialTest
         public string barcode { get; set; }
         public double price { get; set; }
         public int qty { get; set; }
+        public double discount { get; set; }
 
     }
 
@@ -128,12 +129,11 @@ namespace SerialTest
             {
                 Product product = new Product();
                 product.barcode = (string)p["barcode"];
-
                 product.name = (string)p["productName"];
-
                 product.price = (double)p["sellingPrice"];
-
                 product.qty = (int)p["currentStock"];
+                product.discount = (double)p["discountPercentage"];
+
 
                 if (!products.ContainsKey(product.barcode))
                     products.Add(product.barcode, product);
@@ -217,7 +217,11 @@ namespace SerialTest
                     if (state == 1)
                     {
                         Product pr = products[priceDisplays["L3002"].barcode];
-                        string outs = "<" + pr.name + ">" + "{" + pr.price + "}";
+                        string outs;
+                        if (pr.discount == 0.0)
+                            outs = "Price:" + pr.price + "$  " + "Discount:" + "No Discount currently";
+                        else
+                            outs = "Price:" + pr.price + "$  " + "Discount:" + pr.discount + "%";
 
                         PriceDisplay pd = priceDisplays["L3002"];
 
@@ -285,7 +289,7 @@ namespace SerialTest
                     Console.WriteLine("Cash Register found Found");
                     string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
                     string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
-                    
+
                     Product pr = new Product();
 
                     try
