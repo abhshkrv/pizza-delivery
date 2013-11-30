@@ -14,7 +14,8 @@ namespace SerialTest
     {
         public string name { get; set; }
         public string barcode { get; set; }
-        public float price { get; set; }
+        public double price { get; set; }
+        public int qty { get; set; }
 
     }
 
@@ -22,7 +23,7 @@ namespace SerialTest
     {
         public List<Product> items { get; set; }
         public List<int> qtyList { get; set; }
-
+        public double totalPrice { get; set; }
         public Transaction()
         {
             items = new List<Product>();
@@ -130,7 +131,9 @@ namespace SerialTest
 
                 product.name = (string)p["productName"];
 
-                product.price = (float)p["sellingPrice"];
+                product.price = (double)p["sellingPrice"];
+
+                product.qty = (int)p["currentStock"];
 
                 if (!products.ContainsKey(product.barcode))
                     products.Add(product.barcode, product);
@@ -275,29 +278,55 @@ namespace SerialTest
             if (state == 0)
             {
 
+                //add item
                 if (buffer.Contains("[") && buffer.Contains("]"))
                 {
 
                     Console.WriteLine("Cash Register found Found");
                     string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
                     string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
-
+                    
                     Product pr = new Product();
-                    pr = products[barcode];
 
-                    double cost = pr.price * Int16.Parse(qty);
-                    if (currentCR.transaction == null)
+                    try
                     {
-                        currentCR.transaction = new Transaction();
+                        pr = products[barcode];
                     }
-                    currentCR.transaction.items.Add(pr);
-                    currentCR.transaction.qtyList.Add(Int16.Parse(qty));
+                    catch
+                    {
+                        pr = null;
+                    }
+                    if (pr == null)
+                    {
+                        string outs = "(D;0)";
+                        p.Write(outs);
+                    }
+                    else if (pr.qty < Int16.Parse(qty))
+                    {
+                        string outs = "(E;" + qty.ToString() + ")";
+                        p.Write(outs);
+                    }
+                    else if (currentCR.transaction.totalPrice > 999999.99)
+                    {
+                        string outs = "(D;0)";
+                        p.Write(outs);
+                    }
+                    else
+                    {
+                        double cost = pr.price * Int16.Parse(qty);
+                        if (currentCR.transaction == null)
+                        {
+                            currentCR.transaction = new Transaction();
+                        }
+                        currentCR.transaction.items.Add(pr);
+                        currentCR.transaction.qtyList.Add(Int16.Parse(qty));
 
 
-                    string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                        string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
 
-                    p.Write(outs);
-                    Console.WriteLine("Sent data : " + outs);
+                        p.Write(outs);
+                        Console.WriteLine("Sent data : " + outs);
+                    }
                     cflag = 0;
                     state = 1;
                     buffer = "";
@@ -374,8 +403,11 @@ namespace SerialTest
                  //cancel item
                 else if (buffer.Contains("<") && buffer.Contains(">"))
                 {
+
                     int index = Int16.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
                     Product pr = cashRegisters[0].transaction.items[index - 1];
+
+
                     int qty = cashRegisters[0].transaction.qtyList[index - 1];
                     cashRegisters[0].transaction.items.RemoveAt(index - 1);
                     cashRegisters[0].transaction.qtyList.RemoveAt(index - 1);
@@ -388,7 +420,7 @@ namespace SerialTest
                 }
 
                 //cancel transaction
-                else if(buffer.Contains("*3*"))
+                else if (buffer.Contains("*3*"))
                 {
                     currentCR.transaction = null;
                     cflag = 0;
@@ -399,18 +431,31 @@ namespace SerialTest
                 else if (buffer.Contains("*2*"))
                 {
                     currentCR.status = Status.OFFLINE;
+                    currentCR.transaction = null;
                     Console.WriteLine("Logged Out");
                     cflag = 0;
                     state = 1;
                 }
 
-                else if(buffer.Contains("$")&&buffer.Contains(">"))
+                //email
+                else if (buffer.Contains("$") && buffer.Contains(">"))
                 {
-                    Console.WriteLine("Sending Email and SMS ...");
+                    if (buffer.Contains("2468"))
+                    {
+                        String outs = "(D;0)";
+                        p.Write(outs);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Sending Email and SMS ...");
+                        String outs = "(E;0)";
+                        p.Write(outs);
+                    }
                     cflag = 0;
                     state = 1;
                 }
 
+                 // modify qty
                 else if (buffer.Contains("#") && buffer.Contains("]"))
                 {
                     //#12345678;qty]
@@ -419,19 +464,39 @@ namespace SerialTest
                     int newQty = Int16.Parse(qty);
                     Product pr;
                     pr = products[barcode];
+                    try
+                    {
+                        pr = products[barcode];
+                    }
+                    catch
+                    {
+                        pr = null;
+                    }
+                    if (pr == null)
+                    {
+                        string outs = "(D;0)";
+                        p.Write(outs);
+                    }
+                    else if (pr.qty < Int16.Parse(qty))
+                    {
+                        string outs = "(E;" + qty.ToString() + ")";
+                        p.Write(outs);
+                    }
+                    else
+                    {
+                        int index = currentCR.transaction.items.IndexOf(pr);
+                        //currentCR.transaction.items.RemoveAt(pr);
+                        int oldQty = currentCR.transaction.qtyList[index];
+                        double oldCost = oldQty * pr.price;
 
-                    int index = currentCR.transaction.items.IndexOf(pr);
-                    //currentCR.transaction.items.RemoveAt(pr);
-                    int oldQty = currentCR.transaction.qtyList[index];
-                    double oldCost = oldQty * pr.price;
+                        currentCR.transaction.qtyList[index] = newQty;
 
-                    currentCR.transaction.qtyList[index] = newQty;
+                        double newCost = newQty * pr.price;
 
-                    double newCost = newQty * pr.price;
-
-                    string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
-                    string outs = "(" + (int)Math.Floor(Math.Log10(oldCost) + 1) + ";" + oldCost.ToString("0.00").TrimStart('0') + ")"+newOuts;
-                    p.Write(outs);
+                        string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
+                        string outs = "(" + (int)Math.Floor(Math.Log10(oldCost) + 1) + ";" + oldCost.ToString("0.00").TrimStart('0') + ")" + newOuts;
+                        p.Write(outs);
+                    }
                     cflag = 0;
                     state = 1;
                 }
@@ -453,10 +518,7 @@ namespace SerialTest
                     Console.WriteLine("Sent data : " + pd.lastMsg);
                     cflag = 0;
                     state = 0;
-
-
                 }
-
             }
         }
 
@@ -464,13 +526,13 @@ namespace SerialTest
         {
             //15
 
-            string value="";
-           for(int i=0;i<6;i++)
+            string value = "";
+            for (int i = 0; i < 6; i++)
             {
-                value += (char)(password[i]-15-i);
+                value += (char)(password[i] - 15 - i);
             }
 
-           return value;
+            return value;
         }
     }
 }
