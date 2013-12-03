@@ -408,8 +408,15 @@ namespace SerialTest
                         {
                             currentCR.transaction = new Transaction();
                         }
-                        currentCR.transaction.items.Add(pr);
-                        currentCR.transaction.qtyList.Add(Int32.Parse(qty));
+                        if (currentCR.transaction.items.Contains(pr))
+                        {
+                            currentCR.transaction.qtyList[currentCR.transaction.items.IndexOf(pr)] += Int32.Parse(qty);
+                        }
+                        else
+                        {
+                            currentCR.transaction.items.Add(pr);
+                            currentCR.transaction.qtyList.Add(Int32.Parse(qty));
+                        }
 
 
                         string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
