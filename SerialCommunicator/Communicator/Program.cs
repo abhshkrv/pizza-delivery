@@ -537,7 +537,7 @@ namespace SerialTest
 
                         if (pr.qty < Int32.Parse(qty))
                         {
-                            string outs = "(E;" + qty.ToString() + ")";
+                            string outs = "(E;" + pr.qty.ToString() + ")";
                             p.Write(outs);
                         }
                         else
