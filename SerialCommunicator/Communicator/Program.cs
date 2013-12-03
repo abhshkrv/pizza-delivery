@@ -404,6 +404,7 @@ namespace SerialTest
                     else
                     {
                         double cost = pr.price * Int32.Parse(qty);
+                        currentCR.transaction.totalPrice += cost;
                         if (currentCR.transaction == null)
                         {
                             currentCR.transaction = new Transaction();
