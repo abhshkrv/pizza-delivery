@@ -20,6 +20,12 @@ namespace SerialTest
 
     }
 
+    public class Employee
+    {
+        public string userID { get; set; }
+        public string password { get; set; }   
+    }
+
     public class Transaction
     {
         public List<Product> items { get; set; }
@@ -42,6 +48,7 @@ namespace SerialTest
         public string id { get; set; }
         public Transaction transaction { get; set; }
         public Status status { get; set; }
+        public Employee employee { get; set; }
 
     }
 
@@ -70,6 +77,7 @@ namespace SerialTest
     class Program
     {
         static Dictionary<string, Product> products = new Dictionary<string, Product>();
+        static Dictionary<string, Employee> employees = new Dictionary<string, Employee>();
         static List<CashRegister> cashRegisters = new List<CashRegister>();
 
         static Dictionary<string, PriceDisplay> priceDisplays = new Dictionary<string, PriceDisplay>();
@@ -83,6 +91,8 @@ namespace SerialTest
             readCashRegisters(cashRegisters);
             Console.WriteLine("Reading LCDs\n");
             readPriceDisplays(priceDisplays);
+            Console.WriteLine("Reading Employees\n");
+            readEmployees(employees);
             Console.WriteLine("Starting communications");
             communicate();
         }
@@ -97,7 +107,38 @@ namespace SerialTest
             cashRegisters.Add(cr);
         }
 
+        private static void login(string username,string password,string cashRegister)
+        {
+            using (var wb = new WebClient())
+            {
+                string url = "http://localhost:1824/session/login";
+                var data = new NameValueCollection();
+                data["username"] = username;
+                data["password"] = password;
+                data["cashRegister"] = cashRegister;
+                
+                var response = wb.UploadValues(url, "POST", data);
+            }
 
+            Console.WriteLine("Logged in");
+        }
+
+        private static void logout(string username, string password, string cashRegister)
+        {
+            using (var wb = new WebClient())
+            {
+                string url = "http://localhost:1824/session/logout";
+                var data = new NameValueCollection();
+                data["username"] = username;
+                data["password"] = password;
+                data["cashRegister"] = cashRegister;
+
+                var response = wb.UploadValues(url, "POST", data);
+            }
+
+            Console.WriteLine("Logged out");
+
+        }
 
         static void readProducts(Dictionary<string, Product> products)
         {
@@ -177,6 +218,43 @@ namespace SerialTest
 
                 if (!priceDisplays.ContainsKey(lcd.id))
                     priceDisplays.Add(lcd.id, lcd);
+                else
+                {
+                    priceDisplays[lcd.id] = lcd;
+                }
+
+            }
+        }
+
+        static void readEmployees(Dictionary<string, Employee> employees)
+        {
+            string url = "http://localhost:1824/session/employees";
+            var request = WebRequest.Create(url);
+            request.ContentType = "application/json; charset=utf-8";
+            string text;
+            var response = (HttpWebResponse)request.GetResponse();
+
+            using (var sr = new StreamReader(response.GetResponseStream()))
+            {
+                text = sr.ReadToEnd();
+            }
+
+            JObject raw = JObject.Parse(text);
+            JArray priceArray = (JArray)raw["Employees"];
+
+            foreach (var p in priceArray)
+            {
+                Employee employee = new Employee();
+                employee.userID = (string)p["userID"];
+
+                employee.password = (string)p["password"];
+
+                if (!employees.ContainsKey(employee.userID))
+                    employees.Add(employee.userID, employee);
+                else
+                {
+                    employees[employee.userID] = employee;
+                }
 
             }
         }
@@ -385,12 +463,17 @@ namespace SerialTest
                     string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
                     string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
 
-                    if (username == "123456" && decrypt(password) == "987654")
+                    if (employees[username].password==decrypt(password))
                     {
                         Console.WriteLine("Authentication Success");
                         buffer = "";
                         cashRegisters[0].status = Status.ONLINE;
                         p.Write("(A;0)");
+                        currentCR.employee = new Employee();
+                        currentCR.employee.userID = username;
+                        currentCR.employee.password = password;
+                        Thread thread3 = new Thread(() => login(username, decrypt(password),cashRegisters[0].id));
+                        thread3.Start();
                     }
                     else
                     {
@@ -464,6 +547,8 @@ namespace SerialTest
                     currentCR.status = Status.OFFLINE;
                     currentCR.transaction = null;
                     Console.WriteLine("Logged Out");
+                    Thread thread2 = new Thread(() => logout(currentCR.employee.userID,currentCR.employee.password,cashRegisters[0].id));
+                    thread2.Start();
                     cflag = 0;
                     state = 1;
                 }
