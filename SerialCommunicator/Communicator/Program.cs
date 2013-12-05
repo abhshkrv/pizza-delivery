@@ -7,6 +7,7 @@ using System.IO;
 using Newtonsoft.Json.Linq;
 using System.Threading;
 using System.Collections.Specialized;
+using System.Diagnostics;
 
 namespace SerialTest
 {
@@ -240,9 +241,9 @@ namespace SerialTest
             }
 
             JObject raw = JObject.Parse(text);
-            JArray priceArray = (JArray)raw["Employees"];
+            JArray employeeArray = (JArray)raw["Employees"];
 
-            foreach (var p in priceArray)
+            foreach (var p in employeeArray)
             {
                 Employee employee = new Employee();
                 employee.userID = (string)p["userID"];
@@ -296,6 +297,13 @@ namespace SerialTest
                         p.Write("[" + cr.id + "]");
                         currentCR = cr;
                         cflag = 1;
+
+                        //Timeout
+                        Stopwatch stopWatch = new Stopwatch();
+                        stopWatch.Start();
+                        //Thread.Sleep(5000);
+                        stopWatch.Stop();
+                        
                     }
 
                     if (state == 1)
@@ -331,7 +339,7 @@ namespace SerialTest
 
                     //thread1.Start();
                     // thread1.Join();
-                    if (!thread1.ThreadState.Equals(ThreadState.Running))
+                    if (!thread1.ThreadState.Equals(System.Threading.ThreadState.Running))
                     {
                         thread1 = new Thread(() => readProducts(products));
                         thread1.Start();
@@ -414,15 +422,15 @@ namespace SerialTest
                             currentCR.transaction = new Transaction();
                         }
                         int check =0;
-                        foreach(var p in currentCR.transaction.items)
+                        foreach(var product in currentCR.transaction.items)
                         {
-                            if(p.barcode == barcode)
+                            if(product.barcode == barcode)
                             {    currentCR.transaction.qtyList[currentCR.transaction.items.IndexOf(pr)] += Int32.Parse(qty);
                                 check =1;
                                 break;
                             }
                         }
-                        if (check == 0) ;
+                        if (check == 0)
                         {
                             currentCR.transaction.items.Add(pr);
                             currentCR.transaction.qtyList.Add(Int32.Parse(qty));
@@ -483,6 +491,11 @@ namespace SerialTest
                     string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
                     string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
 
+                    if (!employees.ContainsKey(username))
+                    {
+                        Console.WriteLine("Authentication Failed");
+                        p.Write("(B;0)");
+                    }
                     if (employees[username].password==decrypt(password))
                     {
                         Console.WriteLine("Authentication Success");
