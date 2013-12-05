@@ -37,6 +37,8 @@ namespace SerialTest
             items = new List<Product>();
             qtyList = new List<int>();
         }
+
+        public int status { get; set; }
     }
 
     public enum Status
@@ -436,6 +438,7 @@ namespace SerialTest
                         {
                             currentCR.transaction.items.Add(pr);
                             currentCR.transaction.qtyList.Add(Int32.Parse(qty));
+                            currentCR.transaction.status = 1;
                         }
 
 
@@ -475,7 +478,7 @@ namespace SerialTest
                         currentCR.lastTransactionID = Int16.Parse(Encoding.ASCII.GetString(response));
                     }
 
-
+                    cashRegisters[0].transaction.status = 2;
                     cashRegisters[0].status = Status.ONLINE;
                     cashRegisters[0].transaction = null;
 
@@ -569,7 +572,7 @@ namespace SerialTest
                 }
 
                 //cancel transaction
-                else if (buffer.Contains("*3*"))
+                else if (buffer.Contains("*3*")&&currentCR.transaction.status==1||currentCR.transaction.status==0)
                 {
                     currentCR.transaction = null;
                     cflag = 0;
@@ -577,7 +580,7 @@ namespace SerialTest
                 }
 
                 //cancel last transaction
-                else if(buffer.Contains("*x*"))
+                else if(buffer.Contains("*3*")&&currentCR.transaction.status==2)
                 {
                     string url = "http://localhost:1824/transaction/deleteTransaction?transactionID="+currentCR.lastTransactionID.ToString();
                     var request = WebRequest.Create(url);
