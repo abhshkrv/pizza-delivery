@@ -421,11 +421,12 @@ namespace SerialTest
                         {
                             currentCR.transaction = new Transaction();
                         }
-                        int check =0;
+                        int check =0,i=0;
                         foreach(var product in currentCR.transaction.items)
                         {
+                            i++;
                             if(product.barcode == barcode)
-                            {    currentCR.transaction.qtyList[currentCR.transaction.items.IndexOf(pr)] += Int32.Parse(qty);
+                            {    currentCR.transaction.qtyList[i] += Int32.Parse(qty);
                                 check =1;
                                 break;
                             }
@@ -687,6 +688,11 @@ namespace SerialTest
                             p.Write(outs);
                         }
                         else if (Int32.Parse(qty) <= 0)
+                        {
+                            string outs = "(D;0)";
+                            p.Write(outs);
+                        }
+                        else if (Int32.Parse(qty) * pr.price > 999999.99 || Int32.Parse(qty)*pr.price + currentCR.transaction.totalPrice>999999.99)
                         {
                             string outs = "(D;0)";
                             p.Write(outs);
