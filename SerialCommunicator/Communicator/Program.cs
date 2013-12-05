@@ -49,7 +49,7 @@ namespace SerialTest
         public Transaction transaction { get; set; }
         public Status status { get; set; }
         public Employee employee { get; set; }
-
+        public int lastTransactionID { get; set; }
     }
 
     public class PriceDisplay
@@ -270,10 +270,14 @@ namespace SerialTest
                 Console.WriteLine(name);
             Console.Write("Choose one:");
             p = new SerialPort(Console.ReadLine(), 9600, Parity.None, 8, StopBits.Two);
+            p.ReadTimeout = 500;
+            p.WriteTimeout = 500;
             p.DataReceived += new SerialDataReceivedEventHandler(p_DataReceived);
             p.Open();
             int update = 0;
             Thread thread1 = new Thread(() => readProducts(products));
+
+            
             while (true)
             {
                 /*if (flag == 0)
@@ -396,7 +400,7 @@ namespace SerialTest
                         string outs = "(E;" + pr.qty.ToString() + ")";
                         p.Write(outs);
                     }
-                    else if (currentCR.transaction.totalPrice > 999999.99)
+                    else if (currentCR.transaction.totalPrice + (pr.price * Int32.Parse(qty)) > 999999.99 || Int32.Parse(qty) <= 0)
                     {
                         string outs = "(D;0)";
                         p.Write(outs);
@@ -409,11 +413,16 @@ namespace SerialTest
                         {
                             currentCR.transaction = new Transaction();
                         }
-                        if (currentCR.transaction.items.Contains(pr))
+                        int check =0;
+                        foreach(var p in currentCR.transaction.items)
                         {
-                            currentCR.transaction.qtyList[currentCR.transaction.items.IndexOf(pr)] += Int32.Parse(qty);
+                            if(p.barcode == barcode)
+                            {    currentCR.transaction.qtyList[currentCR.transaction.items.IndexOf(pr)] += Int32.Parse(qty);
+                                check =1;
+                                break;
+                            }
                         }
-                        else
+                        if (check == 0) ;
                         {
                             currentCR.transaction.items.Add(pr);
                             currentCR.transaction.qtyList.Add(Int32.Parse(qty));
@@ -430,6 +439,7 @@ namespace SerialTest
                     buffer = "";
                 }
 
+                //save transaction
                 if (buffer == "*4*")
                 {
                     string tstring = "2271:";
@@ -451,6 +461,8 @@ namespace SerialTest
                         //data["password"] = "myPassword";
 
                         var response = wb.UploadValues(url, "POST", data);
+
+                        currentCR.lastTransactionID = Int16.Parse(Encoding.ASCII.GetString(response));
                     }
 
 
@@ -549,6 +561,33 @@ namespace SerialTest
                     state = 1;
                 }
 
+                //cancel last transaction
+                else if(buffer.Contains("*x*"))
+                {
+                    string url = "http://localhost:1824/transaction/deleteTransaction?transactionID="+currentCR.lastTransactionID.ToString();
+                    var request = WebRequest.Create(url);
+                    request.ContentType = "application/json; charset=utf-8";
+                    string text = ""; ;
+
+                    try
+                    {
+                        var response = (HttpWebResponse)request.GetResponse();
+                        using (var sr = new StreamReader(response.GetResponseStream()))
+                        {
+                            text = sr.ReadToEnd();
+                        }
+
+                    }
+                    catch
+                    {
+                        Console.WriteLine(" Error");
+                    }
+                    currentCR.lastTransactionID = 0;
+                    currentCR.transaction = null;
+                    cflag = 0;
+                    state = 1;
+                }
+
                 //logout
                 else if (buffer.Contains("*2*"))
                 {
@@ -620,6 +659,7 @@ namespace SerialTest
                         Console.WriteLine("Product not in transactions");
                         p.Write("(D;0)");
                         cflag = 0;
+                        state = 1;
                     }
                     else
                     {
@@ -633,9 +673,14 @@ namespace SerialTest
                             string outs = "(E;" + pr.qty.ToString() + ")";
                             p.Write(outs);
                         }
+                        else if (Int32.Parse(qty) <= 0)
+                        {
+                            string outs = "(D;0)";
+                            p.Write(outs);
+                        }
                         else
                         {
-                             index = currentCR.transaction.items.IndexOf(pr);
+                            index = currentCR.transaction.items.IndexOf(pr);
                             //currentCR.transaction.items.RemoveAt(pr);
                             int oldQty = currentCR.transaction.qtyList[index];
                             double oldCost = oldQty * pr.price;
