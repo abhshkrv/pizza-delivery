@@ -496,7 +496,7 @@ namespace SerialTest
                         Console.WriteLine("Authentication Failed");
                         p.Write("(B;0)");
                     }
-                    if (employees[username].password==decrypt(password))
+                    else if (employees[username].password==decrypt(password))
                     {
                         Console.WriteLine("Authentication Success");
                         buffer = "";
