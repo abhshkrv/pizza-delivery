@@ -482,7 +482,7 @@ namespace SerialTest
                     cashRegisters[0].transaction.status = 2;
                     cashRegisters[0].status = Status.ONLINE;
                     cashRegisters[0].transaction = null;
-
+                    currentCR = cashRegisters[0];
                     buffer = "";
                     Console.WriteLine("Transaction Complete");
                     cflag = 0;
@@ -555,6 +555,7 @@ namespace SerialTest
                     {
                         Console.WriteLine("Product not in transactions");
                         p.Write("(D;0)");
+                        state = 1;
                         cflag = 0;
                     }
                     else
@@ -586,7 +587,7 @@ namespace SerialTest
                 //cancel last transaction
                 else if (buffer.Contains("*3*"))
                 {
-                    if (currentCR.transaction.status == 2)
+                    if (currentCR.transaction==null)
                     {
                         string url = "http://localhost:1824/transaction/deleteTransaction?transactionID=" + currentCR.lastTransactionID.ToString();
                         var request = WebRequest.Create(url);
@@ -619,8 +620,11 @@ namespace SerialTest
                     currentCR.status = Status.OFFLINE;
                     currentCR.transaction = null;
                     Console.WriteLine("Logged Out");
-                    Thread thread2 = new Thread(() => logout(currentCR.employee.userID, currentCR.employee.password, cashRegisters[0].id));
-                    thread2.Start();
+                    if (currentCR != null&&cashRegisters[0].id!=null)
+                    {
+                        Thread thread2 = new Thread(() => logout(currentCR.employee.userID, currentCR.employee.password, cashRegisters[0].id));
+                        thread2.Start();
+                    }
                     cflag = 0;
                     state = 1;
                 }
