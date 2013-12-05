@@ -424,12 +424,13 @@ namespace SerialTest
                         int check =0,i=0;
                         foreach(var product in currentCR.transaction.items)
                         {
-                            i++;
+                            
                             if(product.barcode == barcode)
                             {    currentCR.transaction.qtyList[i] += Int32.Parse(qty);
                                 check =1;
                                 break;
                             }
+                            i++;
                         }
                         if (check == 0)
                         {
