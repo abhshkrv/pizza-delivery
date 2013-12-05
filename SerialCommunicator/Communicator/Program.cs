@@ -24,7 +24,7 @@ namespace SerialTest
     public class Employee
     {
         public string userID { get; set; }
-        public string password { get; set; }   
+        public string password { get; set; }
     }
 
     public class Transaction
@@ -110,7 +110,7 @@ namespace SerialTest
             cashRegisters.Add(cr);
         }
 
-        private static void login(string username,string password,string cashRegister)
+        private static void login(string username, string password, string cashRegister)
         {
             using (var wb = new WebClient())
             {
@@ -119,7 +119,7 @@ namespace SerialTest
                 data["username"] = username;
                 data["password"] = password;
                 data["cashRegister"] = cashRegister;
-                
+
                 var response = wb.UploadValues(url, "POST", data);
             }
 
@@ -280,7 +280,7 @@ namespace SerialTest
             int update = 0;
             Thread thread1 = new Thread(() => readProducts(products));
 
-            
+
             while (true)
             {
                 /*if (flag == 0)
@@ -305,7 +305,7 @@ namespace SerialTest
                         stopWatch.Start();
                         //Thread.Sleep(5000);
                         stopWatch.Stop();
-                        
+
                     }
 
                     if (state == 1)
@@ -313,9 +313,9 @@ namespace SerialTest
                         Product pr = products[priceDisplays["L3002"].barcode];
                         string outs;
                         if (pr.discount == 0.0)
-                            outs = "<"+pr.name+">"+"{"+"Price:" + pr.price + "$  " + "No Discount Currently}";
+                            outs = "<" + pr.name + ">" + "{" + "Price:" + pr.price + "$  " + "No Discount Currently}";
                         else
-                            outs = "<"+pr.name+">"+"{"+"Price:" + pr.price + "$  " + "Discount:" + pr.discount + "%}";
+                            outs = "<" + pr.name + ">" + "{" + "Price:" + pr.price + "$  " + "Discount:" + pr.discount + "%}";
 
                         PriceDisplay pd = priceDisplays["L3002"];
 
@@ -423,13 +423,14 @@ namespace SerialTest
                         {
                             currentCR.transaction = new Transaction();
                         }
-                        int check =0,i=0;
-                        foreach(var product in currentCR.transaction.items)
+                        int check = 0, i = 0;
+                        foreach (var product in currentCR.transaction.items)
                         {
-                            
-                            if(product.barcode == barcode)
-                            {    currentCR.transaction.qtyList[i] += Int32.Parse(qty);
-                                check =1;
+
+                            if (product.barcode == barcode)
+                            {
+                                currentCR.transaction.qtyList[i] += Int32.Parse(qty);
+                                check = 1;
                                 break;
                             }
                             i++;
@@ -501,7 +502,7 @@ namespace SerialTest
                         Console.WriteLine("Authentication Failed");
                         p.Write("(B;0)");
                     }
-                    else if (employees[username].password==decrypt(password))
+                    else if (employees[username].password == decrypt(password))
                     {
                         Console.WriteLine("Authentication Success");
                         buffer = "";
@@ -510,7 +511,7 @@ namespace SerialTest
                         currentCR.employee = new Employee();
                         currentCR.employee.userID = username;
                         currentCR.employee.password = password;
-                        Thread thread3 = new Thread(() => login(username, decrypt(password),cashRegisters[0].id));
+                        Thread thread3 = new Thread(() => login(username, decrypt(password), cashRegisters[0].id));
                         thread3.Start();
                     }
                     else
@@ -537,8 +538,8 @@ namespace SerialTest
                 else if (buffer.Contains("<") && buffer.Contains(">"))
                 {
                     string barcode = buffer.Substring(1, 8);
-                    int index=-1;// = Int32.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
-                    
+                    int index = -1;// = Int32.Parse(buffer.Substring(buffer.IndexOf('(') + 1, 1));
+
                     Product pr = null;
                     foreach (var product in currentCR.transaction.items)
                     {
@@ -547,7 +548,7 @@ namespace SerialTest
                             pr = product;
                             index = currentCR.transaction.items.IndexOf(product);
                         }
-                        
+
                     }
 
                     if (index == -1)
@@ -572,38 +573,44 @@ namespace SerialTest
                 }
 
                 //cancel transaction
-                else if (buffer.Contains("*3*")&&currentCR.transaction.status==1||currentCR.transaction.status==0)
+                else if (buffer.Contains("*3*") && currentCR.transaction != null)
                 {
-                    currentCR.transaction = null;
-                    cflag = 0;
-                    state = 1;
+                    if (currentCR.transaction.status == 1 || currentCR.transaction.status == 0)
+                    {
+                        currentCR.transaction = null;
+                        cflag = 0;
+                        state = 1;
+                    }
                 }
 
                 //cancel last transaction
-                else if(buffer.Contains("*3*")&&currentCR.transaction.status==2)
+                else if (buffer.Contains("*3*"))
                 {
-                    string url = "http://localhost:1824/transaction/deleteTransaction?transactionID="+currentCR.lastTransactionID.ToString();
-                    var request = WebRequest.Create(url);
-                    request.ContentType = "application/json; charset=utf-8";
-                    string text = ""; ;
-
-                    try
+                    if (currentCR.transaction.status == 2)
                     {
-                        var response = (HttpWebResponse)request.GetResponse();
-                        using (var sr = new StreamReader(response.GetResponseStream()))
+                        string url = "http://localhost:1824/transaction/deleteTransaction?transactionID=" + currentCR.lastTransactionID.ToString();
+                        var request = WebRequest.Create(url);
+                        request.ContentType = "application/json; charset=utf-8";
+                        string text = ""; ;
+
+                        try
                         {
-                            text = sr.ReadToEnd();
-                        }
+                            var response = (HttpWebResponse)request.GetResponse();
+                            using (var sr = new StreamReader(response.GetResponseStream()))
+                            {
+                                text = sr.ReadToEnd();
+                            }
 
+                        }
+                        catch
+                        {
+                            Console.WriteLine(" Error");
+                        }
+                        currentCR.lastTransactionID = 0;
+                        currentCR.transaction = null;
+                        cflag = 0;
+                        state = 1;
                     }
-                    catch
-                    {
-                        Console.WriteLine(" Error");
-                    }
-                    currentCR.lastTransactionID = 0;
-                    currentCR.transaction = null;
-                    cflag = 0;
-                    state = 1;
                 }
 
                 //logout
@@ -612,7 +619,7 @@ namespace SerialTest
                     currentCR.status = Status.OFFLINE;
                     currentCR.transaction = null;
                     Console.WriteLine("Logged Out");
-                    Thread thread2 = new Thread(() => logout(currentCR.employee.userID,currentCR.employee.password,cashRegisters[0].id));
+                    Thread thread2 = new Thread(() => logout(currentCR.employee.userID, currentCR.employee.password, cashRegisters[0].id));
                     thread2.Start();
                     cflag = 0;
                     state = 1;
@@ -696,7 +703,7 @@ namespace SerialTest
                             string outs = "(D;0)";
                             p.Write(outs);
                         }
-                        else if (Int32.Parse(qty) * pr.price > 999999.99 || Int32.Parse(qty)*pr.price + currentCR.transaction.totalPrice>999999.99)
+                        else if (Int32.Parse(qty) * pr.price > 999999.99 || Int32.Parse(qty) * pr.price + currentCR.transaction.totalPrice > 999999.99)
                         {
                             string outs = "(D;0)";
                             p.Write(outs);
