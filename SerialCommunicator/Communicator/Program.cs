@@ -88,15 +88,15 @@ namespace SerialTest
         static void Main(string[] args)
         {
 
-            Console.WriteLine("Reading Products\n");
+            Console.WriteLine("Reading Products");
             readProducts(products);
-            Console.WriteLine("Reading CashRegisters");
+            Console.WriteLine("\nReading Cash Registers");
             readCashRegisters(cashRegisters);
-            Console.WriteLine("Reading LCDs\n");
+            Console.WriteLine("Reading LCDs");
             readPriceDisplays(priceDisplays);
-            Console.WriteLine("Reading Employees\n");
+            Console.WriteLine("Reading Employee Details");
             readEmployees(employees);
-            Console.WriteLine("Starting communications");
+            Console.WriteLine("Starting Communications...\n");
             communicate();
         }
 
@@ -146,7 +146,7 @@ namespace SerialTest
         static void readProducts(Dictionary<string, Product> products)
         {
             //Thread.Sleep(10000);
-            Console.WriteLine("Reading prices in new thread");
+            Console.WriteLine("Reading prices in new thread\n");
             string url = "http://localhost:1824/serial/Product";
             var request = WebRequest.Create(url);
             request.ContentType = "application/json; charset=utf-8";
@@ -268,10 +268,10 @@ namespace SerialTest
         static void communicate()
         {
             string[] names = SerialPort.GetPortNames();
-            Console.WriteLine("Serial ports:");
+            Console.WriteLine("Serial ports:-");
             foreach (string name in names)
                 Console.WriteLine(name);
-            Console.Write("Choose one:");
+            Console.Write("\nChoose one: ");
             p = new SerialPort(Console.ReadLine(), 9600, Parity.None, 8, StopBits.Two);
             p.ReadTimeout = 500;
             p.WriteTimeout = 500;
@@ -297,7 +297,7 @@ namespace SerialTest
                     
                     
                     //Thread.Sleep(5000);
-                    if (stopWatch.ElapsedMilliseconds >= 2000)
+                    if (stopWatch.ElapsedMilliseconds >= 2500)
                     {
                         //priceDisplays["L3002"].lastMsg = "";
                         stopWatch.Stop();
@@ -321,7 +321,7 @@ namespace SerialTest
                     if (state == 0)
                     {
                         CashRegister cr = cashRegisters[0];
-                        Console.WriteLine("Sending ID...[" + cr.id + "]");
+                        Console.WriteLine("\nSending ID [" + cr.id + "]");
                         p.Write("[" + cr.id + "]");
                         currentCR = cr;
                         cflag = 1;
@@ -342,7 +342,7 @@ namespace SerialTest
 
                         if (pd.lastMsg != outs)
                         {
-                            Console.WriteLine("Sending ID...");
+                            Console.WriteLine("\nSending ID [L3002]");
                             p.Write("[L3002]");
                             pd.lastMsg = outs;
                             cflag = 1;
@@ -629,7 +629,7 @@ namespace SerialTest
                         }
                         catch
                         {
-                            Console.WriteLine(" Error");
+                            Console.WriteLine("Error");
                         }
                         currentCR.lastTransactionID = 0;
                         currentCR.transaction = null;
@@ -688,10 +688,16 @@ namespace SerialTest
                     catch
                     {
                         p.Write("(D;0)");
-                        Console.WriteLine(" Error");
+                        Console.WriteLine("Error in Refunding Transaction");
                     }
 
-                    p.Write("(D;1)");
+                    if (text == "Fail")
+                    {
+                        p.Write("(D;0)");
+                        Console.WriteLine("Given Transaction ID does not exist");
+                    }
+                    else if (text == "Success")
+                        p.Write("(D;1)");
 
                     currentCR.lastTransactionID = 0;
                     currentCR.transaction = null;
