@@ -280,7 +280,8 @@ namespace SerialTest
             int update = 0;
             Thread thread1 = new Thread(() => readProducts(products));
 
-
+            Stopwatch stopWatch = new Stopwatch();
+            stopWatch.Start();
             while (true)
             {
                 /*if (flag == 0)
@@ -290,6 +291,31 @@ namespace SerialTest
                     flag = 1;
                 }*/
                 Thread.Sleep(500);
+                if (cflag == 1)
+                {
+                    //Timeout
+                    
+                    
+                    //Thread.Sleep(5000);
+                    if (stopWatch.ElapsedMilliseconds >= 2000)
+                    {
+                        //priceDisplays["L3002"].lastMsg = "";
+                        stopWatch.Stop();
+                        if (state == 0)
+                        {
+                            state = 1;
+                           
+                        }
+                        else if (state == 1)
+                        {
+                            state = 0;
+                            priceDisplays["L3002"].lastMsg = "";
+                        }
+                        cflag = 0;
+                        stopWatch.Start();
+                    }
+                }
+
                 if (cflag == 0)
                 {
                     if (state == 0)
@@ -300,17 +326,7 @@ namespace SerialTest
                         currentCR = cr;
                         cflag = 1;
 
-                        //Timeout
-                        Stopwatch stopWatch = new Stopwatch();
-                        stopWatch.Start();
-                        //Thread.Sleep(5000);
-                        if (stopWatch.ElapsedMilliseconds==1000000)
-                        {
-                            stopWatch.Stop();
-                            state = 1;
-                            cflag = 0;
-                        }
-
+                        
                     }
 
                     if (state == 1)
@@ -330,6 +346,8 @@ namespace SerialTest
                             p.Write("[L3002]");
                             pd.lastMsg = outs;
                             cflag = 1;
+
+                           
                         }
                         else
                         {
