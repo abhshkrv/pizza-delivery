@@ -289,7 +289,7 @@ namespace SerialTest
                     p.Write("[L3002]");
                     flag = 1;
                 }*/
-                Thread.Sleep(100);
+                Thread.Sleep(500);
                 if (cflag == 0)
                 {
                     if (state == 0)
@@ -381,7 +381,7 @@ namespace SerialTest
                 if (buffer.Contains("[") && buffer.Contains("]"))
                 {
 
-                    Console.WriteLine("Cash Register found Found");
+                    Console.WriteLine("Cash Register Found");
                     string barcode = buffer.Substring(buffer.IndexOf('[') + 1, 8);
                     string qty = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(']') - (buffer.IndexOf(';') + 1));
 
@@ -493,7 +493,7 @@ namespace SerialTest
                 // authenctication
                 else if (buffer.Contains("(") && buffer.Contains(")"))
                 {
-                    Console.WriteLine("Cash Register found Found");
+                    Console.WriteLine("Cash Register Found");
                     string username = buffer.Substring(buffer.IndexOf('(') + 1, 6);
                     string password = buffer.Substring(buffer.IndexOf(';') + 1, buffer.IndexOf(')') - (buffer.IndexOf(';') + 1));
 
@@ -565,6 +565,7 @@ namespace SerialTest
                         cashRegisters[0].transaction.qtyList.RemoveAt(index);
 
                         double cost = pr.price * qty;
+                        currentCR.transaction.totalPrice -= cost;
 
                         string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
                         p.Write(outs);
@@ -622,8 +623,22 @@ namespace SerialTest
                     Console.WriteLine("Logged Out");
                     if (currentCR != null&&cashRegisters[0].id!=null)
                     {
-                        Thread thread2 = new Thread(() => logout(currentCR.employee.userID, currentCR.employee.password, cashRegisters[0].id));
-                        thread2.Start();
+                        var tmp_username = " ";
+
+                        try
+                        {
+                            tmp_username = currentCR.employee.userID;
+                        }
+                        catch
+                        {
+                            tmp_username = null;
+                        }
+
+                        if (tmp_username != null)
+                        {
+                            Thread thread2 = new Thread(() => logout(currentCR.employee.userID, currentCR.employee.password, cashRegisters[0].id));
+                            thread2.Start();
+                        }
                     }
                     cflag = 0;
                     state = 1;
@@ -707,25 +722,30 @@ namespace SerialTest
                             string outs = "(D;0)";
                             p.Write(outs);
                         }
-                        else if (Int32.Parse(qty) * pr.price > 999999.99 || Int32.Parse(qty) * pr.price + currentCR.transaction.totalPrice > 999999.99)
-                        {
-                            string outs = "(D;0)";
-                            p.Write(outs);
-                        }
                         else
                         {
-                            index = currentCR.transaction.items.IndexOf(pr);
-                            //currentCR.transaction.items.RemoveAt(pr);
                             int oldQty = currentCR.transaction.qtyList[index];
                             double oldCost = oldQty * pr.price;
 
-                            currentCR.transaction.qtyList[index] = newQty;
+                            if ((Int32.Parse(qty) * pr.price + currentCR.transaction.totalPrice - oldCost) > 999999.99)
+                            {
+                                string outs = "(D;0)";
+                                p.Write(outs);
+                            }
+                            else
+                            {
+                                index = currentCR.transaction.items.IndexOf(pr);
+                                //currentCR.transaction.items.RemoveAt(pr);
 
-                            double newCost = newQty * pr.price;
+                                currentCR.transaction.qtyList[index] = newQty;
 
-                            string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
-                            string outs = "(" + (int)Math.Floor(Math.Log10(oldCost) + 1) + ";" + oldCost.ToString("0.00").TrimStart('0') + ")" + newOuts;
-                            p.Write(outs);
+                                double newCost = newQty * pr.price;
+                                currentCR.transaction.totalPrice -= oldCost;
+                                currentCR.transaction.totalPrice += newCost;
+                                string newOuts = "(" + (int)Math.Floor(Math.Log10(newCost) + 1) + ";" + newCost.ToString("0.00").TrimStart('0') + ")";
+                                string outs = "(" + (int)Math.Floor(Math.Log10(oldCost) + 1) + ";" + oldCost.ToString("0.00").TrimStart('0') + ")" + newOuts;
+                                p.Write(outs);
+                            }
                         }
                     }
                     cflag = 0;
