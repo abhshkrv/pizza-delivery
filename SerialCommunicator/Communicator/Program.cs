@@ -304,7 +304,12 @@ namespace SerialTest
                         Stopwatch stopWatch = new Stopwatch();
                         stopWatch.Start();
                         //Thread.Sleep(5000);
-                        stopWatch.Stop();
+                        if (stopWatch.ElapsedMilliseconds==1000000)
+                        {
+                            stopWatch.Stop();
+                            state = 1;
+                            cflag = 0;
+                        }
 
                     }
 
