@@ -667,20 +667,34 @@ namespace SerialTest
                     state = 1;
                 }
 
-                //email
+                //refund transaction
                 else if (buffer.Contains("$") && buffer.Contains(">"))
                 {
-                    if (buffer.Contains("2468"))
+                    string id = buffer.Substring(1, 8);
+                    string url =  "http://localhost:1824/transaction/deleteTransaction?transactionID=" +  id;
+                    var request = WebRequest.Create(url);
+                    request.ContentType = "application/json; charset=utf-8";
+                    string text = "";
+
+                    try
                     {
-                        String outs = "(D;0)";
-                        p.Write(outs);
+                        var response = (HttpWebResponse)request.GetResponse();
+                        using (var sr = new
+                        StreamReader(response.GetResponseStream()))
+                        {
+                            text = sr.ReadToEnd();
+                        }
                     }
-                    else
+                    catch
                     {
-                        Console.WriteLine("Sending Email and SMS ...");
-                        String outs = "(D;1)";
-                        p.Write(outs);
+                        p.Write("(D;0)");
+                        Console.WriteLine(" Error");
                     }
+
+                    p.Write("(D;1)");
+
+                    currentCR.lastTransactionID = 0;
+                    currentCR.transaction = null;
                     cflag = 0;
                     state = 1;
                 }
