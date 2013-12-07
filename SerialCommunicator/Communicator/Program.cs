@@ -52,7 +52,7 @@ namespace SerialTest
         public Transaction transaction { get; set; }
         public Status status { get; set; }
         public Employee employee { get; set; }
-        public int lastTransactionID { get; set; }
+        public Int32 lastTransactionID { get; set; }
     }
 
     public class PriceDisplay
@@ -509,7 +509,7 @@ namespace SerialTest
 
                         var response = wb.UploadValues(url, "POST", data);
 
-                        currentCR.lastTransactionID = Int16.Parse(Encoding.ASCII.GetString(response));
+                        currentCR.lastTransactionID = Int32.Parse(Encoding.ASCII.GetString(response));
                     }
 
                     cashRegisters[0].transaction.status = 2;
@@ -653,7 +653,7 @@ namespace SerialTest
                 {
                     currentCR.status = Status.OFFLINE;
                     currentCR.transaction = null;
-                    Console.WriteLine("Logged Out");
+
                     if (currentCR != null&&cashRegisters[0].id!=null)
                     {
                         var tmp_username = " ";
