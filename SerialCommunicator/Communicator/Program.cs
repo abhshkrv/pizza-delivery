@@ -384,7 +384,7 @@ namespace SerialTest
             } while (line != "quit");
             */
 
-            p.Close();
+         //   p.Close();
         }
 
         static string buffer;
@@ -446,30 +446,40 @@ namespace SerialTest
                         {
                             currentCR.transaction = new Transaction();
                         }
-                        int check = 0, i = 0;
+                        int check = 0, i = 0, skipCheck = 0;
                         foreach (var product in currentCR.transaction.items)
                         {
-
                             if (product.barcode == barcode)
                             {
-                                currentCR.transaction.qtyList[i] += Int32.Parse(qty);
-                                check = 1;
-                                break;
+                                if ((currentCR.transaction.qtyList[i] + Int32.Parse(qty)) > pr.qty)
+                                {
+                                    skipCheck = 1;
+                                    string temp_outs = "(E;" + pr.qty.ToString() + ")";
+                                    p.Write(temp_outs);
+                                    break;
+                                }
+                                else
+                                {
+                                    currentCR.transaction.qtyList[i] += Int32.Parse(qty);
+                                    check = 1;
+                                    break;
+                                }
                             }
                             i++;
                         }
-                        if (check == 0)
+                        if (skipCheck == 0)
                         {
-                            currentCR.transaction.items.Add(pr);
-                            currentCR.transaction.qtyList.Add(Int32.Parse(qty));
-                            currentCR.transaction.status = 1;
+                            if (check == 0)
+                            {
+                                currentCR.transaction.items.Add(pr);
+                                currentCR.transaction.qtyList.Add(Int32.Parse(qty));
+                                currentCR.transaction.status = 1;
+                            }
+
+                            string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
+                            p.Write(outs);
+                            Console.WriteLine("Sent data : " + outs);
                         }
-
-
-                        string outs = "(" + (int)Math.Floor(Math.Log10(cost) + 1) + ";" + cost.ToString("0.00").TrimStart('0') + ")";
-
-                        p.Write(outs);
-                        Console.WriteLine("Sent data : " + outs);
                     }
                     cflag = 0;
                     state = 1;
