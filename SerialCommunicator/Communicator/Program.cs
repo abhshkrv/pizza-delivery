@@ -790,24 +790,6 @@ namespace SerialTest
                     state = 1;
                 }
 
-                //Android checkout
-                else if (buffer.Contains("@") && buffer.Contains("]"))
-                {
-                    if (buffer.Contains("2468"))
-                    {
-                        String outs = "(D;0)";
-                        p.Write(outs);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Checking out via android ...");
-                        String outs = "(3;123.45)";
-                        p.Write(outs);
-                    }
-                    cflag = 0;
-                    state = 1;
-                }
-
                  // modify qty
                 else if (buffer.Contains("#") && buffer.Contains("]"))
                 {
