@@ -19,6 +19,8 @@ namespace SerialTest
         public int qty { get; set; }
         public double discount { get; set; }
 
+
+        public int bundleUnit { get; set; }
     }
 
     public class Employee
@@ -179,7 +181,7 @@ namespace SerialTest
                 product.price = (double)p["sellingPrice"];
                 product.qty = (int)p["currentStock"];
                 product.discount = (double)p["discountPercentage"];
-
+                product.bundleUnit = (int)p["bundleUnit"];
 
                 if (!products.ContainsKey(product.barcode))
                     products.Add(product.barcode, product);
@@ -449,6 +451,8 @@ namespace SerialTest
                     else
                     {
                         double cost = pr.price * Int32.Parse(qty);
+                        cost = cost*(1-(pr.discount/100.0));
+                        
                         currentCR.transaction.totalPrice += cost;
                         if (currentCR.transaction == null)
                         {
