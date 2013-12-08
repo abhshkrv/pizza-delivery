@@ -60,6 +60,7 @@ namespace SerialTest
         public string barcode { get; set; }
         public string id { get; set; }
         public string lastMsg { get; set; }
+        public string lastBarcode {get;set;}
     }
 
     public class MockCashRegister
@@ -193,6 +194,8 @@ namespace SerialTest
 
 
             Console.WriteLine("Read complete");
+
+            readPriceDisplays(priceDisplays);
         }
 
         static void readPriceDisplays(Dictionary<string, PriceDisplay> priceDisplays)
@@ -223,7 +226,10 @@ namespace SerialTest
                     priceDisplays.Add(lcd.id, lcd);
                 else
                 {
-                    priceDisplays[lcd.id] = lcd;
+
+                    priceDisplays[lcd.id].barcode = lcd.barcode;
+                    //priceDisplays[lcd.id] = lcd.barcode;
+
                 }
 
             }
@@ -340,11 +346,13 @@ namespace SerialTest
 
                         PriceDisplay pd = priceDisplays["L3002"];
 
-                        if (pd.lastMsg != outs)
+                        if (pd.lastMsg != outs || pd.lastBarcode != pr.barcode)
                         {
                             Console.WriteLine("\nSending ID [L3002]");
                             p.Write("[L3002]");
                             pd.lastMsg = outs;
+                            priceDisplays["L3002"].lastBarcode = pr.barcode;
+
                             cflag = 1;
 
                            
