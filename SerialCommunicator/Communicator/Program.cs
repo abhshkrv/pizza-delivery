@@ -105,12 +105,56 @@ namespace SerialTest
 
         private static void readCashRegisters(List<CashRegister> cashRegisters)
         {
-            CashRegister cr = new CashRegister();
-            cr.id = "C2271";
-            cr.status = Status.OFFLINE;
+            string url = "http://localhost:1824/serial/CashRegisters";
+            var request = WebRequest.Create(url);
+            request.ContentType = "application/json; charset=utf-8";
+            string text = "";
+
+            try
+            {
+                var response = (HttpWebResponse)request.GetResponse();
 
 
-            cashRegisters.Add(cr);
+                using (var sr = new StreamReader(response.GetResponseStream()))
+                {
+                    text = sr.ReadToEnd();
+                }
+
+            }
+            catch
+            {
+                Console.WriteLine("Network Error");
+            }
+            JObject raw = JObject.Parse(text);
+            JArray cashRegisterArray = (JArray)raw["CashRegisters"];
+
+            foreach (var c_reg in cashRegisterArray)
+            {
+                CashRegister cr = new CashRegister();
+                cr.id = (string)c_reg["cashRegisterID"];
+                cr.status = Status.OFFLINE;
+                int flag = 0;
+                foreach (var item in cashRegisters) 
+                {
+                    if (item.id == cr.id)
+                        flag = 1;
+                }
+                if(flag==0)
+                    cashRegisters.Add(cr);
+
+            }
+
+            for (int i = 0; i < cashRegisters.Count; i++)
+            {
+                if (cashRegisters[i].id == "2271")
+                {
+                    var temp = cashRegisters[0];
+                    cashRegisters[0] = cashRegisters[i];
+                    cashRegisters[i] = temp;
+                }
+            }
+
+            Console.WriteLine("Read complete");           
         }
 
         private static void login(string username, string password, string cashRegister)
@@ -281,8 +325,8 @@ namespace SerialTest
                 Console.WriteLine(name);
             Console.Write("\nChoose one: ");
             p = new SerialPort(Console.ReadLine(), 9600, Parity.None, 8, StopBits.Two);
-            p.ReadTimeout = 500;
-            p.WriteTimeout = 500;
+            p.ReadTimeout = 1000;
+            p.WriteTimeout = 1000;
             p.DataReceived += new SerialDataReceivedEventHandler(p_DataReceived);
             p.Open();
             int update = 0;
@@ -290,6 +334,7 @@ namespace SerialTest
 
             Stopwatch stopWatch = new Stopwatch();
             stopWatch.Start();
+            int count = 0;
             while (true)
             {
                 /*if (flag == 0)
@@ -298,7 +343,7 @@ namespace SerialTest
                     p.Write("[L3002]");
                     flag = 1;
                 }*/
-                Thread.Sleep(500);
+                Thread.Sleep(400);
                 if (cflag == 1)
                 {
                     //Timeout
@@ -328,13 +373,17 @@ namespace SerialTest
                 {
                     if (state == 0)
                     {
-                        CashRegister cr = cashRegisters[0];
-                        Console.WriteLine("\nSending ID [" + cr.id + "]");
-                        p.Write("[" + cr.id + "]");
-                        currentCR = cr;
-                        cflag = 1;
 
-                        
+                            for (int i = 1; i < cashRegisters.Count; i++)
+                            {
+                                Console.WriteLine("\nSending ID [C" + cashRegisters[i].id + "]");
+                                Thread.Sleep(20);
+                            }
+                            CashRegister cr = cashRegisters[0];
+                            Console.WriteLine("\nSending ID [C" + cr.id + "]");
+                            p.Write("[C" + cr.id + "]");
+                            currentCR = cr;
+                            cflag = 1;                                           
                     }
 
                     if (state == 1)
